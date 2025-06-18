@@ -28,6 +28,7 @@ class TextToSpeechService extends EventEmitter {
 
     ws.on('message', (data) => {
       // Emit streamed audio chunk immediately
+      console.log('TTS audio chunk size:', data.length, 'bytes');
       const base64Chunk = Buffer.from(data).toString('base64');
       this.emit('speech', partialResponseIndex, base64Chunk, partialResponse, interactionCount);
     });
