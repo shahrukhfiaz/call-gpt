@@ -14,6 +14,8 @@ class TextToSpeechService extends EventEmitter {
     const { partialResponseIndex, partialResponse } = gptReply;
     if (!partialResponse) return;
 
+    console.log('TTS sending text:', partialResponse);
+
     const url = `wss://api.deepgram.com/v1/speak?model=${process.env.VOICE_MODEL}&encoding=mulaw&sample_rate=8000&container=none`;
 
     const ws = new WebSocket(url, {
