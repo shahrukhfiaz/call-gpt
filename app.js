@@ -104,7 +104,7 @@ app.post('/api/call', async (req, res) => {
     const call = await client.calls.create({
       to,
       from: process.env.FROM_NUMBER,
-      url: `https://${process.env.SERVER}/twilio/voice?callSid={CallSid}`
+      url: `https://${process.env.SERVER}/twilio/voice`
     });
     callSessionVars[call.sid] = llm_variables || {};
     res.json({ success: true, callSid: call.sid });
