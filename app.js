@@ -48,55 +48,56 @@ app.ws('/connection', (ws, req) => {
     ws.on('error', console.error);
     let streamSid;
     let callSid;
+    let agent = null;
+    let agentReady = false;
+    let audioBufferQueue = [];
 
     // Debug log to check the full websocket request URL
     console.log('WebSocket req.url:', req.url); // DEBUG
 
-    // Get callSid from query string
-    const url = require('url');
-    const parsedUrl = url.parse(req.url, true);
-    callSid = parsedUrl.query.callSid;
-    const llmVars = callSid ? (callSessionVars[callSid] || {}) : {};
-    console.log('llmVars for connection:', llmVars); // DEBUG
-
-    // Instantiate and connect the Deepgram Voice Agent with llmVars
-    const agent = new VoiceAgentService(llmVars);
-    agent.connect().then(() => {
-      console.log('VoiceAgentService connected');
-    });
-
-    // Forward Twilio audio to Deepgram Agent
-    ws.on('message', function message(data) {
+    // Wait for the 'start' event to get callSid
+    ws.on('message', async function message(data) {
       const msg = JSON.parse(data);
       if (msg.event === 'start') {
         streamSid = msg.start.streamSid;
         callSid = msg.start.callSid;
         console.log(`Twilio -> Starting Media Stream for ${streamSid}`.underline.red);
+        console.log('callSid from start event:', callSid); // DEBUG
+        const llmVars = callSid ? (callSessionVars[callSid] || {}) : {};
+        console.log('llmVars for connection:', llmVars); // DEBUG
+        // Instantiate and connect the Deepgram Voice Agent with llmVars
+        agent = new VoiceAgentService(llmVars);
+        await agent.connect();
+        agentReady = true;
+        console.log('VoiceAgentService connected');
+        // Flush any buffered audio
+        audioBufferQueue.forEach(audioBuffer => agent.sendAudio(audioBuffer));
+        audioBufferQueue = [];
+        // Forward Deepgram Agent audio back to Twilio
+        if (agent.connection) {
+          agent.connection.on(AgentEvents.Audio, (audioData) => {
+            const base64Audio = audioData.toString('base64');
+            ws.send(
+              JSON.stringify({
+                streamSid,
+                event: 'media',
+                media: { payload: base64Audio },
+              })
+            );
+          });
+        }
       } else if (msg.event === 'media') {
-        // Twilio sends base64 mulaw audio in msg.media.payload
-        // Convert base64 to Buffer and send to agent
         const audioBuffer = Buffer.from(msg.media.payload, 'base64');
-        agent.sendAudio(audioBuffer);
+        if (agentReady && agent) {
+          agent.sendAudio(audioBuffer);
+        } else {
+          audioBufferQueue.push(audioBuffer);
+        }
       } else if (msg.event === 'stop') {
         console.log(`Twilio -> Media stream ${streamSid} ended.`.underline.red);
-        agent.finish();
+        if (agent) agent.finish();
       }
     });
-
-    // Forward Deepgram Agent audio back to Twilio
-    if (agent.connection) {
-      agent.connection.on(AgentEvents.Audio, (audioData) => {
-        // audioData is a Buffer (mulaw/8000), Twilio expects base64
-        const base64Audio = audioData.toString('base64');
-        ws.send(
-          JSON.stringify({
-            streamSid,
-            event: 'media',
-            media: { payload: base64Audio },
-          })
-        );
-      });
-    }
   } catch (err) {
     console.log(err);
   }
