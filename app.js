@@ -42,14 +42,21 @@ app.post('/incoming', (req, res) => {
   }
 });
 
-app.ws('/connection', (ws) => {
+app.ws('/connection', (ws, req) => {
   try {
     ws.on('error', console.error);
     let streamSid;
     let callSid;
 
-    // Instantiate and connect the Deepgram Voice Agent
-    const agent = new VoiceAgentService();
+    // Get callSid from query string
+    const url = require('url');
+    const parsedUrl = url.parse(req.url, true);
+    callSid = parsedUrl.query.callSid;
+    const llmVars = callSid ? (callSessionVars[callSid] || {}) : {};
+    console.log('llmVars for connection:', llmVars);
+
+    // Instantiate and connect the Deepgram Voice Agent with llmVars
+    const agent = new VoiceAgentService(llmVars);
     agent.connect().then(() => {
       console.log('VoiceAgentService connected');
     });
@@ -107,6 +114,7 @@ app.post('/api/call', async (req, res) => {
       url: `https://${process.env.SERVER}/twilio/voice`
     });
     callSessionVars[call.sid] = llm_variables || {};
+    console.log('callSessionVars after /api/call:', callSessionVars);
     res.json({ success: true, callSid: call.sid });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -117,16 +125,13 @@ app.post('/api/call', async (req, res) => {
 app.post('/twilio/voice', async (req, res) => {
   const callSid = req.query.callSid || req.body.CallSid;
   const llmVars = callSessionVars[callSid] || {};
-  // Only set variable values, not system_prompt or greeting
-  Object.entries(llmVars).forEach(([key, value]) => {
-    if (key !== 'system_prompt' && key !== 'greeting') {
-      process.env[key] = value;
-    }
-  });
+  console.log('callSid in /twilio/voice:', callSid, 'llmVars:', llmVars);
+  // Do NOT set process.env variables here anymore
   // Respond with TwiML to connect to media stream
   const response = new VoiceResponse();
   const connect = response.connect();
-  connect.stream({ url: `wss://${process.env.SERVER}/connection` });
+  // Pass llmVars as a query param to the websocket connection
+  connect.stream({ url: `wss://${process.env.SERVER}/connection?callSid=${callSid}` });
   res.type('text/xml');
   res.end(response.toString());
 });
