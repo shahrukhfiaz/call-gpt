@@ -11,8 +11,8 @@ class VoiceAgentService {
 
     this.connection.on(AgentEvents.Welcome, () => {
       console.log("Welcome to the Deepgram Voice Agent!");
-      const systemPrompt = process.env.AI_SYSTEM_PROMPT || "You are a friendly AI assistant.";
-      const greeting = process.env.AI_GREETING || "Hello! How can I help you today?";
+      const systemPrompt = (process.env.AI_SYSTEM_PROMPT || "You are a friendly AI assistant.").replace(/\\n/g, "\n");
+      const greeting = (process.env.AI_GREETING || "Hello! How can I help you today?").replace(/\\n/g, "\n");
       this.connection.configure({
         audio: {
           input: { encoding: "mulaw", sample_rate: 8000 },
