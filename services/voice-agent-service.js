@@ -11,6 +11,8 @@ class VoiceAgentService {
 
     this.connection.on(AgentEvents.Welcome, () => {
       console.log("Welcome to the Deepgram Voice Agent!");
+      const systemPrompt = process.env.AI_SYSTEM_PROMPT || "You are a friendly AI assistant.";
+      const greeting = process.env.AI_GREETING || "Hello! How can I help you today?";
       this.connection.configure({
         audio: {
           input: { encoding: "mulaw", sample_rate: 8000 },
@@ -19,9 +21,9 @@ class VoiceAgentService {
         agent: {
           language: "en",
           listen: { provider: { type: "deepgram", model: "nova-3" } },
-          think: { provider: { type: "open_ai", model: "gpt-4o-mini" }, prompt: "You are a friendly AI assistant." },
+          think: { provider: { type: "open_ai", model: "gpt-4o-mini" }, prompt: systemPrompt },
           speak: { provider: { type: "deepgram", model: "aura-2-thalia-en" } },
-          greeting: "Hello! How can I help you today?"
+          greeting: greeting
         }
       });
       console.log("Deepgram agent configured!");
