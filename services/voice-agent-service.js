@@ -13,7 +13,7 @@ class VoiceAgentService {
       console.log("Welcome to the Deepgram Voice Agent!");
       this.connection.configure({
         audio: {
-          input: { encoding: "linear16", sample_rate: 24000 },
+          input: { encoding: "mulaw", sample_rate: 8000 },
           output: { encoding: "mulaw", sample_rate: 8000, container: "none" }
         },
         agent: {
