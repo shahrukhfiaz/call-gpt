@@ -142,7 +142,7 @@ digitalstorming.com`
 
     // Step 1: Send user transcription to Chat GPT
     const stream = await this.openai.chat.completions.create({
-      model: 'gpt-4-1106-preview',
+      model: 'o4-mini-2025-04-16',
       messages: this.userContext,
       tools: tools,
       stream: true,
