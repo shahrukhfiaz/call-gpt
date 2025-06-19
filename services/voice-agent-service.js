@@ -14,7 +14,7 @@ class VoiceAgentService {
       this.connection.configure({
         audio: {
           input: { encoding: "linear16", sample_rate: 24000 },
-          output: { encoding: "linear16", sample_rate: 16000, container: "wav" }
+          output: { encoding: "mulaw", sample_rate: 8000, container: "none" }
         },
         agent: {
           language: "en",
