@@ -11,7 +11,7 @@ class TranscriptionService extends EventEmitter {
     this.dgConnection = deepgram.listen.live({
       encoding: 'mulaw',
       sample_rate: '8000',
-      model: 'nova-2',
+      model: 'nova-3',
       punctuate: true,
       interim_results: true,
       endpointing: 200,
