@@ -10,6 +10,7 @@ const { TranscriptionService } = require('./services/transcription-service');
 const { TextToSpeechService } = require('./services/tts-service');
 const { recordingService } = require('./services/recording-service');
 const { VoiceAgentService } = require('./services/voice-agent-service');
+const { AgentEvents } = require("@deepgram/sdk");
 
 const VoiceResponse = require('twilio').twiml.VoiceResponse;
 
@@ -63,10 +64,8 @@ app.ws('/connection', (ws) => {
 
     // Forward Deepgram Agent audio back to Twilio
     if (agent.connection) {
-      agent.connection.on('audio', (audioData) => {
-        // audioData is a Buffer (linear16/wav), but Twilio expects base64 mulaw/8000
-        // You may need to transcode here if formats don't match
-        // For now, send as base64 (may need adjustment for production)
+      agent.connection.on(AgentEvents.Audio, (audioData) => {
+        // audioData is a Buffer (mulaw/8000), Twilio expects base64
         const base64Audio = audioData.toString('base64');
         ws.send(
           JSON.stringify({

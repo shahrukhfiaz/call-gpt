@@ -60,7 +60,11 @@ class VoiceAgentService {
   // Finish the agent session
   finish() {
     if (this.connection) {
-      this.connection.finish();
+      if (typeof this.connection.close === 'function') {
+        this.connection.close();
+      } else if (typeof this.connection.disconnect === 'function') {
+        this.connection.disconnect();
+      }
     }
   }
 }
