@@ -117,12 +117,12 @@ app.post('/api/call', async (req, res) => {
 app.post('/twilio/voice', async (req, res) => {
   const callSid = req.query.callSid || req.body.CallSid;
   const llmVars = callSessionVars[callSid] || {};
-  // Set env vars for this call (for demo; ideally pass to agent constructor)
-  if (llmVars.system_prompt) process.env.AI_SYSTEM_PROMPT = llmVars.system_prompt;
-  if (llmVars.greeting) process.env.AI_GREETING = llmVars.greeting;
-  if (llmVars.company_name) process.env.company_name = llmVars.company_name;
-  if (llmVars.email_address) process.env.email_address = llmVars.email_address;
-  if (llmVars.phone_number) process.env.phone_number = llmVars.phone_number;
+  // Only set variable values, not system_prompt or greeting
+  Object.entries(llmVars).forEach(([key, value]) => {
+    if (key !== 'system_prompt' && key !== 'greeting') {
+      process.env[key] = value;
+    }
+  });
   // Respond with TwiML to connect to media stream
   const response = new VoiceResponse();
   const connect = response.connect();
