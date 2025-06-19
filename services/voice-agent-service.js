@@ -11,8 +11,13 @@ class VoiceAgentService {
 
     this.connection.on(AgentEvents.Welcome, () => {
       console.log("Welcome to the Deepgram Voice Agent!");
-      const systemPrompt = (process.env.AI_SYSTEM_PROMPT || "You are a friendly AI assistant.").replace(/\\n/g, "\n");
+      // Get system prompt and inject variables if present
+      let systemPrompt = (process.env.AI_SYSTEM_PROMPT || "You are a friendly AI assistant.").replace(/\\n/g, "\n");
       const greeting = (process.env.AI_GREETING || "Hello! How can I help you today?").replace(/\\n/g, "\n");
+      // Inject variables if present in environment
+      if (process.env.company_name) systemPrompt = systemPrompt.replace(/\{\{company_name\}\}/g, process.env.company_name);
+      if (process.env.email_address) systemPrompt = systemPrompt.replace(/\{\{email_address\}\}/g, process.env.email_address);
+      if (process.env.phone_number) systemPrompt = systemPrompt.replace(/\{\{phone_number\}\}/g, process.env.phone_number);
       this.connection.configure({
         audio: {
           input: { encoding: "mulaw", sample_rate: 8000 },
