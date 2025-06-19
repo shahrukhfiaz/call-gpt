@@ -3,6 +3,8 @@ require('colors');
 
 const express = require('express');
 const ExpressWs = require('express-ws');
+const bodyParser = require('body-parser');
+const twilio = require('twilio');
 
 const { GptService } = require('./services/gpt-service');
 const { StreamService } = require('./services/stream-service');
@@ -18,6 +20,14 @@ const app = express();
 ExpressWs(app);
 
 const PORT = process.env.PORT || 3000;
+
+app.use(bodyParser.json());
+
+// In-memory store for call LLM variables
+const callSessionVars = {};
+
+// API key for authentication
+const API_KEY = process.env.SERVER_API_KEY;
 
 app.post('/incoming', (req, res) => {
   try {
@@ -79,6 +89,43 @@ app.ws('/connection', (ws) => {
   } catch (err) {
     console.log(err);
   }
+});
+
+// Secure webhook for n8n to trigger outbound calls
+app.post('/api/call', async (req, res) => {
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey || apiKey !== API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const { to, llm_variables } = req.body;
+  if (!to) return res.status(400).json({ error: 'Missing "to" number' });
+  try {
+    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    const call = await client.calls.create({
+      to,
+      from: process.env.FROM_NUMBER,
+      url: `https://${process.env.SERVER}/twilio/voice?callSid={CallSid}`
+    });
+    callSessionVars[call.sid] = llm_variables || {};
+    res.json({ success: true, callSid: call.sid });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Twilio webhook for when call connects
+app.post('/twilio/voice', async (req, res) => {
+  const callSid = req.query.callSid || req.body.CallSid;
+  const llmVars = callSessionVars[callSid] || {};
+  // Set env vars for this call (for demo; ideally pass to agent constructor)
+  if (llmVars.system_prompt) process.env.AI_SYSTEM_PROMPT = llmVars.system_prompt;
+  if (llmVars.greeting) process.env.AI_GREETING = llmVars.greeting;
+  // Respond with TwiML to connect to media stream
+  const response = new VoiceResponse();
+  const connect = response.connect();
+  connect.stream({ url: `wss://${process.env.SERVER}/connection` });
+  res.type('text/xml');
+  res.end(response.toString());
 });
 
 app.listen(PORT);
