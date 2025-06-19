@@ -14,8 +14,8 @@ class TranscriptionService extends EventEmitter {
       model: 'nova-3',
       punctuate: true,
       interim_results: true,
-      endpointing: 200,
-      utterance_end_ms: 1000
+      endpointing: 100,
+      utterance_end_ms: 500
     });
 
     this.finalResult = '';
