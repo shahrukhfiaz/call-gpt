@@ -49,12 +49,15 @@ app.ws('/connection', (ws, req) => {
     let streamSid;
     let callSid;
 
+    // Debug log to check the full websocket request URL
+    console.log('WebSocket req.url:', req.url); // DEBUG
+
     // Get callSid from query string
     const url = require('url');
     const parsedUrl = url.parse(req.url, true);
     callSid = parsedUrl.query.callSid;
     const llmVars = callSid ? (callSessionVars[callSid] || {}) : {};
-    console.log('llmVars for connection:', llmVars);
+    console.log('llmVars for connection:', llmVars); // DEBUG
 
     // Instantiate and connect the Deepgram Voice Agent with llmVars
     const agent = new VoiceAgentService(llmVars);
