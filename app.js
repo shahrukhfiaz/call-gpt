@@ -9,6 +9,7 @@ const { StreamService } = require('./services/stream-service');
 const { TranscriptionService } = require('./services/transcription-service');
 const { TextToSpeechService } = require('./services/tts-service');
 const { recordingService } = require('./services/recording-service');
+const { VoiceAgentService } = require('./services/voice-agent-service');
 
 const VoiceResponse = require('twilio').twiml.VoiceResponse;
 
@@ -33,78 +34,49 @@ app.post('/incoming', (req, res) => {
 app.ws('/connection', (ws) => {
   try {
     ws.on('error', console.error);
-    // Filled in from start message
     let streamSid;
     let callSid;
 
-    const gptService = new GptService();
-    const streamService = new StreamService(ws);
-    const transcriptionService = new TranscriptionService();
-    const ttsService = new TextToSpeechService({});
-  
-    let marks = [];
-    let interactionCount = 0;
-  
-    // Incoming from MediaStream
+    // Instantiate and connect the Deepgram Voice Agent
+    const agent = new VoiceAgentService();
+    agent.connect().then(() => {
+      console.log('VoiceAgentService connected');
+    });
+
+    // Forward Twilio audio to Deepgram Agent
     ws.on('message', function message(data) {
       const msg = JSON.parse(data);
       if (msg.event === 'start') {
         streamSid = msg.start.streamSid;
         callSid = msg.start.callSid;
-        
-        streamService.setStreamSid(streamSid);
-        gptService.setCallSid(callSid);
-
-        // Set RECORDING_ENABLED='true' in .env to record calls
-        recordingService(ttsService, callSid).then(() => {
-          console.log(`Twilio -> Starting Media Stream for ${streamSid}`.underline.red);
-          ttsService.generate({partialResponseIndex: null, partialResponse: 'Hello, Can you hear me?'}, 0);
-        });
+        console.log(`Twilio -> Starting Media Stream for ${streamSid}`.underline.red);
       } else if (msg.event === 'media') {
-        transcriptionService.send(msg.media.payload);
-      } else if (msg.event === 'mark') {
-        const label = msg.mark.name;
-        console.log(`Twilio -> Audio completed mark (${msg.sequenceNumber}): ${label}`.red);
-        marks = marks.filter(m => m !== msg.mark.name);
+        // Twilio sends base64 mulaw audio in msg.media.payload
+        // Convert base64 to Buffer and send to agent
+        const audioBuffer = Buffer.from(msg.media.payload, 'base64');
+        agent.sendAudio(audioBuffer);
       } else if (msg.event === 'stop') {
         console.log(`Twilio -> Media stream ${streamSid} ended.`.underline.red);
+        agent.finish();
       }
     });
-  
-    transcriptionService.on('utterance', async (text) => {
-      // This is a bit of a hack to filter out empty utterances
-      if(marks.length > 0 && text?.length > 5) {
-        console.log('Twilio -> Interruption, Clearing stream'.red);
+
+    // Forward Deepgram Agent audio back to Twilio
+    if (agent.connection) {
+      agent.connection.on('audio', (audioData) => {
+        // audioData is a Buffer (linear16/wav), but Twilio expects base64 mulaw/8000
+        // You may need to transcode here if formats don't match
+        // For now, send as base64 (may need adjustment for production)
+        const base64Audio = audioData.toString('base64');
         ws.send(
           JSON.stringify({
             streamSid,
-            event: 'clear',
+            event: 'media',
+            media: { payload: base64Audio },
           })
         );
-      }
-    });
-  
-    transcriptionService.on('transcription', async (text) => {
-      if (!text) { return; }
-      console.log(`Interaction ${interactionCount} – STT -> GPT: ${text}`.yellow);
-      gptService.completion(text, interactionCount);
-      interactionCount += 1;
-    });
-    
-    gptService.on('gptreply', async (gptReply, icount) => {
-      console.log(`Interaction ${icount}: GPT -> TTS: ${gptReply.partialResponse}`.green );
-      ttsService.generate(gptReply, icount);
-    });
-  
-    ttsService.on('speech', (responseIndex, audio, label, icount) => {
-      console.log(`Interaction ${icount}: TTS -> TWILIO: ${label}`.blue);
-  
-      streamService.buffer(responseIndex, audio);
-    });
-  
-    streamService.on('audiosent', (markLabel) => {
-      marks.push(markLabel);
-    });
+      });
+    }
   } catch (err) {
     console.log(err);
   }
